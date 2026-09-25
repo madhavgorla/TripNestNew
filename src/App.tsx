@@ -20,6 +20,7 @@ import { AdminConsole } from './components/admin/AdminConsole';
 import { SettingsView } from './components/settings/SettingsView';
 import { CommunityReviewsPage } from './components/reviews/CommunityReviewsPage';
 import { SpringBootArchitectureHub } from './components/architecture/SpringBootArchitectureHub';
+import { PublicSharedItineraryView } from './components/itinerary/PublicSharedItineraryView';
 import { Destination } from './types';
 
 const MainAppContent: React.FC = () => {
@@ -33,6 +34,44 @@ const MainAppContent: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     return localStorage.getItem('tripnest_dark_mode') === 'true';
   });
+
+  // Track if viewing a public shared itinerary URL
+  const [publicShareToken, setPublicShareToken] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get('shareToken') || params.get('share') || params.get('token');
+    if (fromQuery) return fromQuery;
+
+    if (window.location.hash.startsWith('#share/')) {
+      return window.location.hash.replace('#share/', '').trim();
+    }
+
+    if (window.location.pathname.startsWith('/share/')) {
+      return window.location.pathname.replace('/share/', '').trim();
+    }
+
+    return null;
+  });
+
+  // Listen for hash changes or navigation
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const params = new URLSearchParams(window.location.search);
+      const fromQuery = params.get('shareToken') || params.get('share') || params.get('token');
+      if (fromQuery) {
+        setPublicShareToken(fromQuery);
+      } else if (window.location.hash.startsWith('#share/')) {
+        setPublicShareToken(window.location.hash.replace('#share/', '').trim());
+      }
+    };
+
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
+  }, []);
 
   // Handle dark mode toggle
   useEffect(() => {
@@ -73,6 +112,39 @@ const MainAppContent: React.FC = () => {
       setCurrentTab('trips');
     }
   };
+
+  // If viewing a public shared itinerary link
+  if (publicShareToken) {
+    return (
+      <PublicSharedItineraryView
+        shareToken={publicShareToken}
+        onExit={() => {
+          setPublicShareToken(null);
+          if (window.history.pushState) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('shareToken');
+            url.searchParams.delete('share');
+            url.searchParams.delete('token');
+            url.hash = '';
+            window.history.pushState({}, '', url.pathname);
+          }
+        }}
+        onTripCloned={(newTripId) => {
+          setPublicShareToken(null);
+          if (window.history.pushState) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('shareToken');
+            url.searchParams.delete('share');
+            url.searchParams.delete('token');
+            url.hash = '';
+            window.history.pushState({}, '', url.pathname);
+          }
+          setActiveTripById(newTripId);
+          setCurrentTab('trips');
+        }}
+      />
+    );
+  }
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 font-sans">
@@ -115,7 +187,10 @@ const MainAppContent: React.FC = () => {
             )}
 
             {currentTab === 'trips' && (
-              <TripWorkspace onOpenAiCopilot={() => setIsAiCopilotOpen(true)} />
+              <TripWorkspace
+                onOpenAiCopilot={() => setIsAiCopilotOpen(true)}
+                onPreviewPublicLink={(token) => setPublicShareToken(token)}
+              />
             )}
 
             {currentTab === 'discover' && (

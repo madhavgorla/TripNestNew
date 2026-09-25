@@ -18,6 +18,8 @@ import {
   ExternalLink,
   Lock,
   Sparkles,
+  Download,
+  FileArchive,
 } from 'lucide-react';
 import { apiClient, getActiveApiBaseUrl, setActiveApiBaseUrl } from '../../services/api';
 
@@ -329,6 +331,14 @@ volumes:
 
           <div className="flex flex-wrap items-center gap-3">
             <a
+              href="/api/download-zip"
+              download="tripnest-full-project.zip"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-bold text-slate-950 shadow-lg hover:bg-emerald-400 transition-all cursor-pointer"
+            >
+              <Download className="w-4 h-4 text-slate-950" />
+              <span>Download Project (.ZIP)</span>
+            </a>
+            <a
               href="#axios-tester"
               className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-indigo-500 transition-all cursor-pointer"
             >
@@ -344,6 +354,34 @@ volumes:
             </a>
           </div>
         </div>
+      </div>
+
+      {/* Direct Download & Local Setup Banner */}
+      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-50/60 p-5 dark:border-emerald-500/20 dark:bg-emerald-950/20 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <FileArchive className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              Ready-to-Run Project Package (4.1 MB ZIP)
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-medium">
+                React 18 + Spring Boot 3.3 + Java 21 + PostgreSQL
+              </span>
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-2xl leading-relaxed">
+              Contains the complete codebase: full React Vite client, Spring Boot backend with Spring Security, JWT filters, Google OAuth client, JPA entities, REST controllers, PostgreSQL <code className="font-mono bg-emerald-100 dark:bg-emerald-900/50 px-1 py-0.5 rounded text-[11px]">schema.sql</code>, and <code className="font-mono bg-emerald-100 dark:bg-emerald-900/50 px-1 py-0.5 rounded text-[11px]">docker-compose.yml</code>.
+            </p>
+          </div>
+        </div>
+        <a
+          href="/api/download-zip"
+          download="tripnest-full-project.zip"
+          className="flex-shrink-0 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition-colors cursor-pointer"
+        >
+          <Download className="w-4 h-4" />
+          <span>Download ZIP Archive</span>
+        </a>
       </div>
 
       {/* Visual System Architecture Diagram */}

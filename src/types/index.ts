@@ -104,6 +104,7 @@ export interface ExpenseSplit {
   userId: string;
   userName: string;
   amount: number;
+  percentage?: number;
   settled: boolean;
 }
 
@@ -120,14 +121,19 @@ export interface Expense {
   paymentMethod: 'Credit Card' | 'Cash' | 'Bank Transfer' | 'UPI' | 'Other';
   notes?: string;
   receiptUrl?: string;
+  isShared?: boolean;
+  splitType?: 'EQUAL' | 'CUSTOM';
   splits: ExpenseSplit[];
 }
 
 export interface Settlement {
+  id: string;
   fromUser: string;
   toUser: string;
   amount: number;
   currency: string;
+  isSettled?: boolean;
+  settledAt?: string;
 }
 
 export interface GroupMember {
@@ -154,8 +160,12 @@ export type DocumentCategory =
   | 'Visa'
   | 'Flight Tickets'
   | 'Hotel Bookings'
+  | 'Train/Bus Tickets'
   | 'Travel Insurance'
   | 'Identity Documents'
+  | 'Trip Photos'
+  | 'Expense Receipts'
+  | 'Itinerary Document'
   | 'Other';
 
 export interface TravelDocument {
@@ -168,7 +178,11 @@ export interface TravelDocument {
   uploadDate: string;
   expiryDate?: string;
   fileUrl: string;
+  thumbnailUrl?: string;
   notes?: string;
+  uploaderId?: string;
+  uploaderName?: string;
+  isPhoto?: boolean;
 }
 
 export interface NotificationItem {
@@ -179,6 +193,8 @@ export interface NotificationItem {
   isRead: boolean;
   timestamp: string;
   actionUrl?: string;
+  targetTab?: string;
+  category?: 'INVITATION' | 'TRIP_START' | 'ACTIVITY' | 'EXPENSE' | 'BUDGET_ALERT' | 'DOCUMENT' | 'GROUP';
 }
 
 export interface Destination {
@@ -553,5 +569,69 @@ export interface CreateReviewInput {
   tripDate?: string;
   wouldRecommend: boolean;
   photos?: string[];
+}
+
+// -------------------------------------------------------------
+// ITINERARY SHARING & COLLABORATION
+// -------------------------------------------------------------
+
+export type ShareAccessLevel = 'VIEWER' | 'EDITOR';
+
+export interface SharedItineraryLink {
+  id: string;
+  tripId: string;
+  token: string;
+  accessLevel: ShareAccessLevel;
+  shareUrl: string;
+  createdAt: string;
+  expiresAt?: string;
+  allowCloning: boolean;
+  includeBudget: boolean;
+  hasPasscode: boolean;
+  passcode?: string;
+  viewsCount: number;
+  lastViewedAt?: string;
+  isActive: boolean;
+  createdBy: {
+    id: string;
+    name: string;
+    avatarUrl?: string;
+  };
+}
+
+export interface ItineraryCollaborator {
+  id: string;
+  tripId: string;
+  email: string;
+  name: string;
+  avatarUrl?: string;
+  accessLevel: ShareAccessLevel;
+  status: 'ACTIVE' | 'PENDING';
+  invitedAt: string;
+  lastActiveAt?: string;
+}
+
+export interface PublicItineraryData {
+  trip: Trip;
+  itineraryDays: ItineraryDay[];
+  accessLevel: ShareAccessLevel;
+  shareInfo: {
+    token: string;
+    allowCloning: boolean;
+    includeBudget: boolean;
+    viewsCount: number;
+    ownerName: string;
+    ownerAvatar?: string;
+    createdAt: string;
+    expiresAt?: string;
+  };
+}
+
+export interface CreateShareLinkPayload {
+  accessLevel: ShareAccessLevel;
+  expiresIn?: '7d' | '30d' | 'never';
+  allowCloning?: boolean;
+  includeBudget?: boolean;
+  passcode?: string;
 }
 

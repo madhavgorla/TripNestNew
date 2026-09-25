@@ -18,6 +18,11 @@ import {
   Review,
   RatingSummary,
   CreateReviewInput,
+  SharedItineraryLink,
+  ItineraryCollaborator,
+  PublicItineraryData,
+  CreateShareLinkPayload,
+  ShareAccessLevel,
 } from '../types';
 
 // Configurable API base URL: defaults to '/api' (Express dev server / Vite proxy),
@@ -173,8 +178,43 @@ export const api = {
     return res.data;
   },
 
-  async getSettlements(tripId: string): Promise<{ success: boolean; data: any[]; balances: Record<string, number> }> {
-    const res = await apiClient.get<{ success: boolean; data: any[]; balances: Record<string, number> }>(`/expenses/settlements/${tripId}`);
+  async updateExpense(id: string, data: Partial<Expense>): Promise<{ success: boolean; data: Expense }> {
+    const res = await apiClient.put<{ success: boolean; data: Expense }>(`/expenses/${id}`, data);
+    return res.data;
+  },
+
+  async getSettlements(tripId: string): Promise<{
+    success: boolean;
+    data: any[];
+    memberStats?: any[];
+    balances: Record<string, number>;
+    totalSharedExpenses?: number;
+    settledHistory?: any[];
+  }> {
+    const res = await apiClient.get<{
+      success: boolean;
+      data: any[];
+      memberStats?: any[];
+      balances: Record<string, number>;
+      totalSharedExpenses?: number;
+      settledHistory?: any[];
+    }>(`/expenses/settlements/${tripId}`);
+    return res.data;
+  },
+
+  async settleTransaction(
+    tripId: string,
+    fromUser: string,
+    toUser: string,
+    amount: number,
+    currency?: string
+  ): Promise<{ success: boolean; message: string; data: any }> {
+    const res = await apiClient.post(`/expenses/settlements/${encodeURIComponent(tripId)}/settle`, {
+      fromUser,
+      toUser,
+      amount,
+      currency,
+    });
     return res.data;
   },
 
@@ -238,6 +278,24 @@ export const api = {
 
   async markAllNotificationsRead(): Promise<{ success: boolean }> {
     const res = await apiClient.post<{ success: boolean }>('/notifications/read-all');
+    return res.data;
+  },
+
+  async deleteNotification(id: string): Promise<{ success: boolean }> {
+    const res = await apiClient.delete<{ success: boolean }>(`/notifications/${id}`);
+    return res.data;
+  },
+
+  async simulateNotification(payload: {
+    scenario?: string;
+    customTitle?: string;
+    customMessage?: string;
+    targetTab?: string;
+  }): Promise<{ success: boolean; data: NotificationItem; mailDispatch?: any }> {
+    const res = await apiClient.post<{ success: boolean; data: NotificationItem; mailDispatch?: any }>(
+      '/notifications/simulate',
+      payload
+    );
     return res.data;
   },
 
@@ -399,6 +457,127 @@ export const api = {
 
   async deleteReview(reviewId: string): Promise<{ success: boolean; message: string }> {
     const res = await apiClient.delete<{ success: boolean; message: string }>(`/reviews/${encodeURIComponent(reviewId)}`);
+    return res.data;
+  },
+
+  // Itinerary Sharing & Collaboration Endpoints
+  async getTripShares(tripId: string): Promise<{
+    success: boolean;
+    data: { links: SharedItineraryLink[]; collaborators: ItineraryCollaborator[] };
+  }> {
+    const res = await apiClient.get(`/trips/${encodeURIComponent(tripId)}/shares`);
+    return res.data;
+  },
+
+  async createTripShare(
+    tripId: string,
+    payload: CreateShareLinkPayload
+  ): Promise<{ success: boolean; message: string; data: SharedItineraryLink }> {
+    const res = await apiClient.post(`/trips/${encodeURIComponent(tripId)}/shares`, payload);
+    return res.data;
+  },
+
+  async updateShareLink(
+    shareId: string,
+    payload: Partial<SharedItineraryLink>
+  ): Promise<{ success: boolean; message: string; data: SharedItineraryLink }> {
+    const res = await apiClient.put(`/shares/${encodeURIComponent(shareId)}`, payload);
+    return res.data;
+  },
+
+  async deleteShareLink(shareId: string): Promise<{ success: boolean; message: string }> {
+    const res = await apiClient.delete(`/shares/${encodeURIComponent(shareId)}`);
+    return res.data;
+  },
+
+  async inviteCollaborator(
+    tripId: string,
+    email: string,
+    accessLevel: ShareAccessLevel,
+    name?: string
+  ): Promise<{ success: boolean; message: string; data: ItineraryCollaborator }> {
+    const res = await apiClient.post(`/trips/${encodeURIComponent(tripId)}/collaborators`, {
+      email,
+      accessLevel,
+      name,
+    });
+    return res.data;
+  },
+
+  async removeCollaborator(
+    tripId: string,
+    collaboratorId: string
+  ): Promise<{ success: boolean; message: string }> {
+    const res = await apiClient.delete(
+      `/trips/${encodeURIComponent(tripId)}/collaborators/${encodeURIComponent(collaboratorId)}`
+    );
+    return res.data;
+  },
+
+  // Public Endpoints (Direct access without token)
+  async getPublicItinerary(
+    token: string,
+    passcode?: string
+  ): Promise<{
+    success: boolean;
+    requirePasscode?: boolean;
+    message?: string;
+    data?: PublicItineraryData;
+  }> {
+    const res = await apiClient.get(`/public/shares/${encodeURIComponent(token)}`, {
+      params: passcode ? { passcode } : undefined,
+    });
+    return res.data;
+  },
+
+  async addPublicActivity(
+    token: string,
+    activityData: Partial<Activity>
+  ): Promise<{ success: boolean; message: string; data: Activity }> {
+    const res = await apiClient.post(`/public/shares/${encodeURIComponent(token)}/activities`, activityData);
+    return res.data;
+  },
+
+  async updatePublicActivity(
+    token: string,
+    activityId: string,
+    activityData: Partial<Activity>
+  ): Promise<{ success: boolean; message: string; data: Activity }> {
+    const res = await apiClient.put(
+      `/public/shares/${encodeURIComponent(token)}/activities/${encodeURIComponent(activityId)}`,
+      activityData
+    );
+    return res.data;
+  },
+
+  async deletePublicActivity(
+    token: string,
+    activityId: string
+  ): Promise<{ success: boolean; message: string }> {
+    const res = await apiClient.delete(
+      `/public/shares/${encodeURIComponent(token)}/activities/${encodeURIComponent(activityId)}`
+    );
+    return res.data;
+  },
+
+  async togglePublicActivity(
+    token: string,
+    activityId: string
+  ): Promise<{ success: boolean; data: Activity }> {
+    const res = await apiClient.patch(
+      `/public/shares/${encodeURIComponent(token)}/activities/${encodeURIComponent(activityId)}/toggle`
+    );
+    return res.data;
+  },
+
+  async clonePublicItinerary(
+    token: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: { trip: Trip; itineraryDays: ItineraryDay[] };
+  }> {
+    const res = await apiClient.post(`/public/shares/${encodeURIComponent(token)}/clone`);
     return res.data;
   },
 };

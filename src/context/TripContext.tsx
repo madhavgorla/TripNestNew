@@ -23,6 +23,7 @@ interface TripContextType {
   toggleActivityComplete: (activityId: string) => Promise<boolean>;
   reorderDayActivities: (dayId: string, activities: Activity[]) => Promise<boolean>;
   addExpense: (expenseData: Partial<Expense>) => Promise<boolean>;
+  updateExpense: (expenseId: string, expenseData: Partial<Expense>) => Promise<boolean>;
   deleteExpense: (expenseId: string) => Promise<boolean>;
   addDocument: (docData: Partial<TravelDocument>) => Promise<boolean>;
   deleteDocument: (docId: string) => Promise<boolean>;
@@ -272,6 +273,21 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
+  const updateExpense = async (expenseId: string, expenseData: Partial<Expense>): Promise<boolean> => {
+    const res = await api.updateExpense(expenseId, expenseData);
+    if (res.success && res.data) {
+      setExpenses((prev) => prev.map((e) => (e.id === expenseId ? res.data : e)));
+      if (activeTrip) {
+        const total = expenses
+          .map((e) => (e.id === expenseId ? res.data.amount : e.amount))
+          .reduce((sum, a) => sum + a, 0);
+        setActiveTrip({ ...activeTrip, spent: total });
+      }
+      return true;
+    }
+    return false;
+  };
+
   const deleteExpense = async (expenseId: string): Promise<boolean> => {
     const toDelete = expenses.find((e) => e.id === expenseId);
     const res = await api.deleteExpense(expenseId);
@@ -372,6 +388,7 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toggleActivityComplete,
         reorderDayActivities,
         addExpense,
+        updateExpense,
         deleteExpense,
         addDocument,
         deleteDocument,

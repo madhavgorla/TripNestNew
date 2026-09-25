@@ -31,15 +31,17 @@ import { GroupManager } from '../groups/GroupManager';
 import { DocumentVault } from '../documents/DocumentVault';
 import { TripWeatherForecast } from './TripWeatherForecast';
 import { DownloadItineraryModal } from './DownloadItineraryModal';
+import { ShareItineraryModal } from './ShareItineraryModal';
 import { PackingChecklist } from '../packing/PackingChecklist';
 import { TripMemories } from '../memories/TripMemories';
 import { RatingAndReviewSection } from '../reviews/RatingAndReviewSection';
 
 interface TripWorkspaceProps {
   onOpenAiCopilot: () => void;
+  onPreviewPublicLink?: (token: string) => void;
 }
 
-export const TripWorkspace: React.FC<TripWorkspaceProps> = ({ onOpenAiCopilot }) => {
+export const TripWorkspace: React.FC<TripWorkspaceProps> = ({ onOpenAiCopilot, onPreviewPublicLink }) => {
   const { activeTrip, itineraryDays, expenses, deleteTrip, trips, setActiveTripById } = useTrip();
   const { formatPrice } = useCurrency();
 
@@ -49,6 +51,7 @@ export const TripWorkspace: React.FC<TripWorkspaceProps> = ({ onOpenAiCopilot })
   const [mapViewScope, setMapViewScope] = useState<'day' | 'all'>('day');
   const [layoutMode, setLayoutMode] = useState<'split' | 'timeline' | 'map'>('split');
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [weatherData, setWeatherData] = useState<DestinationWeather | null>(null);
 
   // Preload destination weather data for PDF generation and sync
@@ -109,6 +112,15 @@ export const TripWorkspace: React.FC<TripWorkspaceProps> = ({ onOpenAiCopilot })
               >
                 <Film className="w-3.5 h-3.5 text-cyan-300" />
                 <span>Memories</span>
+              </button>
+
+              <button
+                onClick={() => setIsShareModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-full bg-indigo-600/80 hover:bg-indigo-600 text-white px-3 py-1 text-xs font-semibold backdrop-blur-md transition-all cursor-pointer shadow-xs border border-indigo-400/40"
+                title="Share Itinerary (Public Link & Collaborators)"
+              >
+                <Share2 className="w-3.5 h-3.5 text-teal-300" />
+                <span>Share</span>
               </button>
 
               <button
@@ -281,6 +293,15 @@ export const TripWorkspace: React.FC<TripWorkspaceProps> = ({ onOpenAiCopilot })
           {activeWorkspaceTab === 'itinerary' && (
             <div className="flex items-center gap-2">
               <button
+                onClick={() => setIsShareModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800/60 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-900/50 shadow-2xs transition-colors cursor-pointer"
+                title="Generate Public URL or Invite Collaborators"
+              >
+                <Share2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Share Link</span>
+              </button>
+
+              <button
                 onClick={() => setIsDownloadModalOpen(true)}
                 className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 shadow-2xs transition-colors cursor-pointer"
                 title="Download Itinerary as PDF"
@@ -440,6 +461,14 @@ export const TripWorkspace: React.FC<TripWorkspaceProps> = ({ onOpenAiCopilot })
         trip={activeTrip}
         itineraryDays={itineraryDays}
         weatherData={weatherData}
+      />
+
+      {/* Share Itinerary Modal */}
+      <ShareItineraryModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        trip={activeTrip}
+        onPreviewPublicLink={onPreviewPublicLink}
       />
     </div>
   );
