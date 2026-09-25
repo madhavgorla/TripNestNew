@@ -1,6 +1,8 @@
 import express, { Request, Response } from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
+import fs from 'fs';
+import { execSync } from 'child_process';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 
@@ -62,6 +64,17 @@ const USERS: ServerUser[] = [
     travelPreferences: ['Cultural', 'Beaches', 'Food'],
     role: 'GROUP_ADMIN',
     createdAt: '2026-01-20T10:00:00Z',
+  },
+  {
+    id: 'usr-3',
+    fullName: 'Marco Rossi',
+    email: 'marco@tripnest.com',
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    country: 'Italy',
+    preferredCurrency: 'EUR',
+    travelPreferences: ['Gastronomy', 'Art', 'History'],
+    role: 'TRAVELER',
+    createdAt: '2026-02-05T12:00:00Z',
   },
   {
     id: 'usr-admin',
@@ -425,6 +438,14 @@ let GROUPS = [
         role: 'Admin',
         joinedAt: '2026-02-02T11:00:00Z',
       },
+      {
+        userId: 'usr-3',
+        name: 'Marco Rossi',
+        email: 'marco@tripnest.com',
+        avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+        role: 'Member',
+        joinedAt: '2026-02-05T12:00:00Z',
+      },
     ],
   },
   {
@@ -459,6 +480,9 @@ let DOCUMENTS = [
     expiryDate: '2027-02-20',
     fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
     notes: 'Multi-entry Schengen visa valid for 90 days stay.',
+    uploaderId: 'usr-1',
+    uploaderName: 'Lara Croft',
+    isPhoto: false,
   },
   {
     id: 'doc-2',
@@ -470,6 +494,9 @@ let DOCUMENTS = [
     uploadDate: '2026-09-02',
     fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
     notes: 'Terminal 5 Heathrow, seats 14A & 14B.',
+    uploaderId: 'usr-1',
+    uploaderName: 'Lara Croft',
+    isPhoto: false,
   },
   {
     id: 'doc-3',
@@ -481,6 +508,9 @@ let DOCUMENTS = [
     uploadDate: '2026-09-15',
     fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
     notes: 'Check-in Oct 10 14:00, Check-out Oct 15 11:00.',
+    uploaderId: 'usr-1',
+    uploaderName: 'Lara Croft',
+    isPhoto: false,
   },
   {
     id: 'doc-4',
@@ -493,8 +523,65 @@ let DOCUMENTS = [
     expiryDate: '2026-11-01',
     fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
     notes: 'Comprehensive medical and flight cancellation coverage.',
+    uploaderId: 'usr-1',
+    uploaderName: 'Lara Croft',
+    isPhoto: false,
+  },
+  {
+    id: 'doc-5',
+    tripId: 'trip-rome-2026',
+    name: 'Colosseum Twilight Panorama.jpg',
+    category: 'Trip Photos',
+    fileSize: '3.2 MB',
+    fileType: 'image/jpeg',
+    uploadDate: '2026-09-22',
+    fileUrl: '/src/assets/images/dest_rome_colosseum_1790172766150.jpg',
+    thumbnailUrl: '/src/assets/images/dest_rome_colosseum_1790172766150.jpg',
+    notes: 'Golden hour shot captured near Arch of Constantine.',
+    uploaderId: 'usr-1',
+    uploaderName: 'Lara Croft',
+    isPhoto: true,
+  },
+  {
+    id: 'doc-6',
+    tripId: 'trip-rome-2026',
+    name: 'Trattoria Monti Dinner Receipt.jpg',
+    category: 'Expense Receipts',
+    fileSize: '740 KB',
+    fileType: 'image/jpeg',
+    uploadDate: '2026-09-23',
+    fileUrl: '/src/assets/images/dest_rome_colosseum_1790172766150.jpg',
+    thumbnailUrl: '/src/assets/images/dest_rome_colosseum_1790172766150.jpg',
+    notes: 'Itemized invoice for pasta and wine ($140).',
+    uploaderId: 'usr-2',
+    uploaderName: 'Madhav Sharma',
+    isPhoto: true,
+  },
+  {
+    id: 'doc-7',
+    tripId: 'trip-rome-2026',
+    name: 'Frecciarossa 1000 High-Speed Train Ticket.pdf',
+    category: 'Train/Bus Tickets',
+    fileSize: '430 KB',
+    fileType: 'application/pdf',
+    uploadDate: '2026-09-24',
+    fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    notes: 'Rome to Florence day-trip express ticket.',
+    uploaderId: 'usr-3',
+    uploaderName: 'Marco Rossi',
+    isPhoto: false,
   },
 ];
+
+let SETTLED_TRANSACTIONS: {
+  id: string;
+  tripId: string;
+  fromUser: string;
+  toUser: string;
+  amount: number;
+  currency: string;
+  settledAt: string;
+}[] = [];
 
 let NOTIFICATIONS = [
   {
@@ -502,38 +589,69 @@ let NOTIFICATIONS = [
     title: 'Flight Check-in Reminder',
     message: 'Online check-in for flight BA554 to Rome opens in 48 hours.',
     type: 'TRIP',
+    category: 'TRIP_START',
     isRead: false,
     timestamp: '10 minutes ago',
     actionUrl: '/trips/trip-rome-2026',
+    targetTab: 'trips',
   },
   {
     id: 'notif-2',
     title: 'Budget Milestone Alert',
     message: 'Rome Cultural Escape is at 76% of estimated expenditure ($2,450 / $3,200).',
     type: 'BUDGET',
+    category: 'BUDGET_ALERT',
     isRead: false,
     timestamp: '2 hours ago',
     actionUrl: '/trips/trip-rome-2026',
+    targetTab: 'budget',
   },
   {
     id: 'notif-3',
     title: 'New Activity Proposal by TripNest AI',
     message: 'AI Copilot recommended an evening Trastevere Wine & Cheese walk based on your food preference.',
     type: 'AI',
+    category: 'ACTIVITY',
     isRead: true,
     timestamp: '1 day ago',
     actionUrl: '/trips/trip-rome-2026',
+    targetTab: 'trips',
   },
   {
     id: 'notif-4',
     title: 'Group Invitation Accepted',
-    message: 'Madhav Sharma joined Rome Explorers Squad.',
+    message: 'Madhav Sharma and Marco Rossi joined Rome Explorers Squad.',
     type: 'GROUP',
+    category: 'INVITATION',
     isRead: true,
     timestamp: '3 days ago',
     actionUrl: '/groups',
+    targetTab: 'groups',
   },
 ];
+
+function createNotification(
+  title: string,
+  message: string,
+  type: 'TRIP' | 'BUDGET' | 'GROUP' | 'WEATHER' | 'AI' | 'DOCUMENT',
+  actionUrl: string = '/trips',
+  category?: 'INVITATION' | 'TRIP_START' | 'ACTIVITY' | 'EXPENSE' | 'BUDGET_ALERT' | 'DOCUMENT' | 'GROUP',
+  targetTab: string = 'dashboard'
+) {
+  const notif = {
+    id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    title,
+    message,
+    type,
+    category,
+    isRead: false,
+    timestamp: 'Just now',
+    actionUrl,
+    targetTab,
+  };
+  NOTIFICATIONS.unshift(notif);
+  return notif;
+}
 
 let FAVORITES = ['dest-rome', 'dest-bali', 'dest-paris'];
 
@@ -1402,6 +1520,504 @@ app.patch('/api/activities/:id/toggle', (req: Request, res: Response) => {
   res.status(404).json({ success: false, message: 'Activity not found' });
 });
 
+// -------------------------------------------------------------
+// ITINERARY SHARING & PUBLIC COLLABORATION ENDPOINTS
+// -------------------------------------------------------------
+
+interface ServerShareLink {
+  id: string;
+  tripId: string;
+  token: string;
+  accessLevel: 'VIEWER' | 'EDITOR';
+  createdAt: string;
+  expiresAt?: string;
+  allowCloning: boolean;
+  includeBudget: boolean;
+  hasPasscode: boolean;
+  passcode?: string;
+  viewsCount: number;
+  lastViewedAt?: string;
+  isActive: boolean;
+  createdBy: {
+    id: string;
+    name: string;
+    avatarUrl?: string;
+  };
+}
+
+interface ServerCollaborator {
+  id: string;
+  tripId: string;
+  email: string;
+  name: string;
+  avatarUrl?: string;
+  accessLevel: 'VIEWER' | 'EDITOR';
+  status: 'ACTIVE' | 'PENDING';
+  invitedAt: string;
+  lastActiveAt?: string;
+}
+
+let SHARED_LINKS: ServerShareLink[] = [
+  {
+    id: 'link-rome-read-only',
+    tripId: 'trip-rome-2026',
+    token: 'share-rome-viewer-2026',
+    accessLevel: 'VIEWER',
+    createdAt: '2026-09-20T10:00:00Z',
+    allowCloning: true,
+    includeBudget: false,
+    hasPasscode: false,
+    viewsCount: 14,
+    lastViewedAt: '2026-09-24T18:30:00Z',
+    isActive: true,
+    createdBy: {
+      id: 'usr-1',
+      name: 'Lara Croft',
+      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+    },
+  },
+  {
+    id: 'link-rome-editor-collab',
+    tripId: 'trip-rome-2026',
+    token: 'share-rome-editor-2026',
+    accessLevel: 'EDITOR',
+    createdAt: '2026-09-21T14:15:00Z',
+    allowCloning: true,
+    includeBudget: true,
+    hasPasscode: false,
+    viewsCount: 29,
+    lastViewedAt: '2026-09-25T04:12:00Z',
+    isActive: true,
+    createdBy: {
+      id: 'usr-1',
+      name: 'Lara Croft',
+      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+    },
+  },
+];
+
+let COLLABORATORS: ServerCollaborator[] = [
+  {
+    id: 'collab-1',
+    tripId: 'trip-rome-2026',
+    email: 'marco.rossi@rome-travelers.it',
+    name: 'Marco Rossi',
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    accessLevel: 'EDITOR',
+    status: 'ACTIVE',
+    invitedAt: '2026-09-21T11:00:00Z',
+    lastActiveAt: '2026-09-24T19:40:00Z',
+  },
+  {
+    id: 'collab-2',
+    tripId: 'trip-rome-2026',
+    email: 'elena.b@gmail.com',
+    name: 'Elena Bianchi',
+    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+    accessLevel: 'VIEWER',
+    status: 'ACTIVE',
+    invitedAt: '2026-09-22T08:30:00Z',
+    lastActiveAt: '2026-09-23T14:10:00Z',
+  },
+];
+
+// 1. Get all share links and collaborators for a trip
+app.get('/api/trips/:tripId/shares', (req: Request, res: Response) => {
+  const { tripId } = req.params;
+  const links = SHARED_LINKS.filter((l) => l.tripId === tripId);
+  const collabs = COLLABORATORS.filter((c) => c.tripId === tripId);
+  res.json({
+    success: true,
+    data: {
+      links,
+      collaborators: collabs,
+    },
+  });
+});
+
+// 2. Generate a new share link
+app.post('/api/trips/:tripId/shares', (req: Request, res: Response) => {
+  const { tripId } = req.params;
+  const { accessLevel, expiresIn, allowCloning, includeBudget, passcode } = req.body;
+  const trip = TRIPS.find((t) => t.id === tripId);
+
+  if (!trip) {
+    return res.status(404).json({ success: false, message: 'Trip not found' });
+  }
+
+  const rolePrefix = accessLevel === 'EDITOR' ? 'editor' : 'viewer';
+  const destSlug = (trip.destination || 'trip').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
+  const token = `share-${destSlug}-${rolePrefix}-${randomSuffix}`;
+
+  let expiresAt: string | undefined;
+  if (expiresIn === '7d') {
+    expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  } else if (expiresIn === '30d') {
+    expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  }
+
+  const newLink: ServerShareLink = {
+    id: `link-${Date.now()}`,
+    tripId,
+    token,
+    accessLevel: accessLevel === 'EDITOR' ? 'EDITOR' : 'VIEWER',
+    createdAt: new Date().toISOString(),
+    expiresAt,
+    allowCloning: allowCloning !== false,
+    includeBudget: Boolean(includeBudget),
+    hasPasscode: Boolean(passcode && passcode.trim()),
+    passcode: passcode && passcode.trim() ? passcode.trim() : undefined,
+    viewsCount: 0,
+    isActive: true,
+    createdBy: {
+      id: 'usr-1',
+      name: trip.ownerName || 'Lara Croft',
+    },
+  };
+
+  SHARED_LINKS.unshift(newLink);
+  res.status(201).json({
+    success: true,
+    message: 'Public share link created successfully',
+    data: newLink,
+  });
+});
+
+// 3. Update an existing share link
+app.put('/api/shares/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const link = SHARED_LINKS.find((l) => l.id === id);
+  if (!link) {
+    return res.status(404).json({ success: false, message: 'Share link not found' });
+  }
+
+  const { accessLevel, allowCloning, includeBudget, isActive, passcode } = req.body;
+  if (accessLevel) link.accessLevel = accessLevel;
+  if (typeof allowCloning === 'boolean') link.allowCloning = allowCloning;
+  if (typeof includeBudget === 'boolean') link.includeBudget = includeBudget;
+  if (typeof isActive === 'boolean') link.isActive = isActive;
+  if (passcode !== undefined) {
+    link.hasPasscode = Boolean(passcode && passcode.trim());
+    link.passcode = passcode && passcode.trim() ? passcode.trim() : undefined;
+  }
+
+  res.json({
+    success: true,
+    message: 'Share link updated',
+    data: link,
+  });
+});
+
+// 4. Revoke or Delete a share link
+app.delete('/api/shares/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const index = SHARED_LINKS.findIndex((l) => l.id === id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, message: 'Share link not found' });
+  }
+  SHARED_LINKS.splice(index, 1);
+  res.json({ success: true, message: 'Share link revoked and deleted' });
+});
+
+// 5. Invite collaborator
+app.post('/api/trips/:tripId/collaborators', (req: Request, res: Response) => {
+  const { tripId } = req.params;
+  const { email, name, accessLevel } = req.body;
+
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ success: false, message: 'A valid email is required' });
+  }
+
+  const existing = COLLABORATORS.find((c) => c.tripId === tripId && c.email.toLowerCase() === email.toLowerCase());
+  if (existing) {
+    existing.accessLevel = accessLevel || existing.accessLevel;
+    return res.json({ success: true, message: 'Collaborator permission updated', data: existing });
+  }
+
+  const newCollab: ServerCollaborator = {
+    id: `collab-${Date.now()}`,
+    tripId,
+    email: email.trim().toLowerCase(),
+    name: name?.trim() || email.split('@')[0],
+    accessLevel: accessLevel === 'EDITOR' ? 'EDITOR' : 'VIEWER',
+    status: 'ACTIVE',
+    invitedAt: new Date().toISOString(),
+    lastActiveAt: new Date().toISOString(),
+  };
+
+  COLLABORATORS.push(newCollab);
+  res.status(201).json({
+    success: true,
+    message: `Invitation sent to ${email}`,
+    data: newCollab,
+  });
+});
+
+// 6. Remove collaborator
+app.delete('/api/trips/:tripId/collaborators/:id', (req: Request, res: Response) => {
+  const { id, tripId } = req.params;
+  const idx = COLLABORATORS.findIndex((c) => c.id === id && c.tripId === tripId);
+  if (idx === -1) {
+    return res.status(404).json({ success: false, message: 'Collaborator not found' });
+  }
+  COLLABORATORS.splice(idx, 1);
+  res.json({ success: true, message: 'Collaborator removed' });
+});
+
+// 7. Public endpoint: Access shared itinerary by token (NO JWT AUTH REQUIRED!)
+app.get('/api/public/shares/:token', (req: Request, res: Response) => {
+  const { token } = req.params;
+  const link = SHARED_LINKS.find((l) => l.token === token);
+
+  if (!link || !link.isActive) {
+    return res.status(404).json({
+      success: false,
+      message: 'This shared itinerary link has expired or been revoked by the owner.',
+    });
+  }
+
+  // Check expiration date
+  if (link.expiresAt && new Date(link.expiresAt).getTime() < Date.now()) {
+    return res.status(410).json({
+      success: false,
+      message: 'This shared itinerary link has reached its expiration date.',
+    });
+  }
+
+  // Passcode verification if protected
+  if (link.hasPasscode && link.passcode) {
+    const providedPasscode = req.query.passcode as string | undefined;
+    if (!providedPasscode || providedPasscode !== link.passcode) {
+      return res.json({
+        success: false,
+        requirePasscode: true,
+        message: 'Passcode required to view this itinerary.',
+      });
+    }
+  }
+
+  const trip = TRIPS.find((t) => t.id === link.tripId);
+  if (!trip) {
+    return res.status(404).json({ success: false, message: 'Associated trip not found' });
+  }
+
+  // Increment view counter and update activity
+  link.viewsCount += 1;
+  link.lastViewedAt = new Date().toISOString();
+
+  const days = ITINERARY_DAYS.filter((d) => d.tripId === link.tripId);
+
+  // Sanitized trip object (strip private budget if includeBudget is false)
+  const sanitizedTrip = {
+    ...trip,
+    budget: link.includeBudget ? trip.budget : 0,
+    spent: link.includeBudget ? trip.spent : 0,
+  };
+
+  res.json({
+    success: true,
+    data: {
+      trip: sanitizedTrip,
+      itineraryDays: days,
+      accessLevel: link.accessLevel,
+      shareInfo: {
+        token: link.token,
+        allowCloning: link.allowCloning,
+        includeBudget: link.includeBudget,
+        viewsCount: link.viewsCount,
+        ownerName: trip.ownerName,
+        createdAt: link.createdAt,
+        expiresAt: link.expiresAt,
+      },
+    },
+  });
+});
+
+// 8. Public Editor: Add Activity (Requires EDITOR access level)
+app.post('/api/public/shares/:token/activities', (req: Request, res: Response) => {
+  const { token } = req.params;
+  const link = SHARED_LINKS.find((l) => l.token === token && l.isActive);
+
+  if (!link) {
+    return res.status(404).json({ success: false, message: 'Shared link not found or inactive' });
+  }
+
+  if (link.accessLevel !== 'EDITOR') {
+    return res.status(403).json({
+      success: false,
+      message: 'This share link has View-Only permissions. Switch to an Editor link to add or modify activities.',
+    });
+  }
+
+  const { dayId, name, description, startTime, endTime, location, category, cost, priority, notes, coordinates } = req.body;
+  const day = ITINERARY_DAYS.find((d) => d.id === dayId && d.tripId === link.tripId);
+
+  if (!day) {
+    return res.status(404).json({ success: false, message: 'Itinerary day not found' });
+  }
+
+  const newActivity = {
+    id: `act-${Date.now()}`,
+    dayId,
+    tripId: link.tripId,
+    name: name || 'Shared Activity',
+    description: description || 'Added by collaborator.',
+    startTime: startTime || '12:00',
+    endTime: endTime || '13:00',
+    location: location || day.title,
+    category: category || 'Sightseeing',
+    cost: parseFloat(cost) || 0,
+    currency: 'USD',
+    notes: notes || 'Collaborative itinerary entry',
+    priority: priority || 'Medium',
+    isCompleted: false,
+    coordinates: coordinates || { lat: 41.8902, lng: 12.4922 },
+  };
+
+  day.activities.push(newActivity);
+
+  res.status(201).json({
+    success: true,
+    message: 'Activity added by collaborator',
+    data: newActivity,
+  });
+});
+
+// 9. Public Editor: Update Activity (Requires EDITOR access level)
+app.put('/api/public/shares/:token/activities/:activityId', (req: Request, res: Response) => {
+  const { token, activityId } = req.params;
+  const link = SHARED_LINKS.find((l) => l.token === token && l.isActive);
+
+  if (!link || link.accessLevel !== 'EDITOR') {
+    return res.status(403).json({
+      success: false,
+      message: 'Editor access required to update activities.',
+    });
+  }
+
+  for (const day of ITINERARY_DAYS) {
+    if (day.tripId === link.tripId) {
+      const act = day.activities.find((a) => a.id === activityId);
+      if (act) {
+        Object.assign(act, req.body);
+        return res.json({ success: true, message: 'Activity updated', data: act });
+      }
+    }
+  }
+
+  res.status(404).json({ success: false, message: 'Activity not found' });
+});
+
+// 10. Public Editor: Delete Activity (Requires EDITOR access level)
+app.delete('/api/public/shares/:token/activities/:activityId', (req: Request, res: Response) => {
+  const { token, activityId } = req.params;
+  const link = SHARED_LINKS.find((l) => l.token === token && l.isActive);
+
+  if (!link || link.accessLevel !== 'EDITOR') {
+    return res.status(403).json({
+      success: false,
+      message: 'Editor access required to delete activities.',
+    });
+  }
+
+  for (const day of ITINERARY_DAYS) {
+    if (day.tripId === link.tripId) {
+      const initialLen = day.activities.length;
+      day.activities = day.activities.filter((a) => a.id !== activityId);
+      if (day.activities.length < initialLen) {
+        return res.json({ success: true, message: 'Activity deleted' });
+      }
+    }
+  }
+
+  res.status(404).json({ success: false, message: 'Activity not found' });
+});
+
+// 11. Public Editor: Toggle Activity Completion
+app.patch('/api/public/shares/:token/activities/:activityId/toggle', (req: Request, res: Response) => {
+  const { token, activityId } = req.params;
+  const link = SHARED_LINKS.find((l) => l.token === token && l.isActive);
+
+  if (!link || link.accessLevel !== 'EDITOR') {
+    return res.status(403).json({
+      success: false,
+      message: 'Editor access required to toggle activities.',
+    });
+  }
+
+  for (const day of ITINERARY_DAYS) {
+    if (day.tripId === link.tripId) {
+      const act = day.activities.find((a) => a.id === activityId);
+      if (act) {
+        act.isCompleted = !act.isCompleted;
+        return res.json({ success: true, data: act });
+      }
+    }
+  }
+
+  res.status(404).json({ success: false, message: 'Activity not found' });
+});
+
+// 12. Public Clone: Clone shared trip to personal account
+app.post('/api/public/shares/:token/clone', (req: Request, res: Response) => {
+  const { token } = req.params;
+  const link = SHARED_LINKS.find((l) => l.token === token && l.isActive);
+
+  if (!link || !link.allowCloning) {
+    return res.status(403).json({
+      success: false,
+      message: 'Cloning is not permitted for this shared itinerary.',
+    });
+  }
+
+  const originalTrip = TRIPS.find((t) => t.id === link.tripId);
+  if (!originalTrip) {
+    return res.status(404).json({ success: false, message: 'Trip not found' });
+  }
+
+  const newTripId = `trip-cloned-${Date.now()}`;
+  const clonedTrip = {
+    ...originalTrip,
+    id: newTripId,
+    tripName: `Copy of ${originalTrip.tripName}`,
+    ownerId: 'usr-1',
+    ownerName: 'Lara Croft',
+    status: 'PLANNING',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  TRIPS.unshift(clonedTrip);
+
+  // Clone itinerary days and activities
+  const originalDays = ITINERARY_DAYS.filter((d) => d.tripId === link.tripId);
+  const clonedDays = originalDays.map((d, index) => {
+    const newDayId = `day-${newTripId}-${index + 1}`;
+    return {
+      ...d,
+      id: newDayId,
+      tripId: newTripId,
+      activities: (d.activities || []).map((a) => ({
+        ...a,
+        id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        dayId: newDayId,
+        tripId: newTripId,
+      })),
+    };
+  });
+
+  ITINERARY_DAYS.push(...clonedDays);
+
+  res.status(201).json({
+    success: true,
+    message: 'Itinerary cloned successfully to your trips',
+    data: {
+      trip: clonedTrip,
+      itineraryDays: clonedDays,
+    },
+  });
+});
+
 // Expenses & Budget APIs
 app.get('/api/expenses/trip/:tripId', (req: Request, res: Response) => {
   const expenses = EXPENSES.filter((e) => e.tripId === req.params.tripId);
@@ -1409,8 +2025,50 @@ app.get('/api/expenses/trip/:tripId', (req: Request, res: Response) => {
 });
 
 app.post('/api/expenses', (req: Request, res: Response) => {
-  const { tripId, title, amount, currency, category, date, paidById, paidByName, paymentMethod, notes, splits } = req.body;
+  const { tripId, title, amount, currency, category, date, paidById, paidByName, paymentMethod, notes, isShared, splitType, splits } = req.body;
   const numAmount = parseFloat(amount) || 0;
+
+  // Remainder and rounding handling for equal split:
+  let finalSplits: any[] = splits || [];
+  if (isShared !== false) {
+    if (splitType === 'EQUAL' || !splitType) {
+      const activeMembers = splits && splits.length > 0 ? splits : [
+        { userId: 'usr-1', userName: 'Lara Croft' },
+        { userId: 'usr-2', userName: 'Madhav Sharma' },
+        { userId: 'usr-3', userName: 'Marco Rossi' },
+      ];
+      const totalCents = Math.round(numAmount * 100);
+      const count = activeMembers.length;
+      const baseCents = Math.floor(totalCents / count);
+      const remainderCents = totalCents % count;
+
+      // Distribute remaining cents one-by-one to ensure sum matches exactly
+      finalSplits = activeMembers.map((m: any, idx: number) => {
+        const cents = baseCents + (idx < remainderCents ? 1 : 0);
+        return {
+          userId: m.userId,
+          userName: m.userName || m.name,
+          amount: cents / 100,
+          settled: (m.userName || m.name) === paidByName,
+        };
+      });
+    } else {
+      // Custom split: ensure amounts are numbers
+      finalSplits = (splits || []).map((s: any) => ({
+        userId: s.userId,
+        userName: s.userName || s.name,
+        amount: parseFloat(s.amount) || 0,
+        percentage: s.percentage ? parseFloat(s.percentage) : undefined,
+        settled: (s.userName || s.name) === paidByName,
+      }));
+    }
+  } else {
+    // Individual non-shared expense
+    finalSplits = [
+      { userId: paidById || 'usr-1', userName: paidByName || 'Lara Croft', amount: numAmount, settled: true },
+    ];
+  }
+
   const newExpense = {
     id: `exp-${Date.now()}`,
     tripId,
@@ -1423,10 +2081,9 @@ app.post('/api/expenses', (req: Request, res: Response) => {
     paidByName: paidByName || 'Lara Croft',
     paymentMethod: paymentMethod || 'Credit Card',
     notes: notes || '',
-    splits: splits || [
-      { userId: 'usr-1', userName: 'Lara Croft', amount: numAmount / 2, settled: true },
-      { userId: 'usr-2', userName: 'Madhav Sharma', amount: numAmount / 2, settled: false },
-    ],
+    isShared: isShared !== false,
+    splitType: splitType || 'EQUAL',
+    splits: finalSplits,
   };
 
   EXPENSES.unshift(newExpense);
@@ -1435,12 +2092,83 @@ app.post('/api/expenses', (req: Request, res: Response) => {
   const trip = TRIPS.find((t) => t.id === tripId);
   if (trip) {
     trip.spent = (trip.spent || 0) + numAmount;
+    
+    // Budget limit notifications
+    const ratio = trip.budget > 0 ? (trip.spent / trip.budget) : 0;
+    if (ratio >= 1.0) {
+      createNotification(
+        '🚨 Budget Exceeded!',
+        `${trip.tripName} has exceeded its budget of $${trip.budget.toLocaleString()} (Total spent: $${trip.spent.toLocaleString()}).`,
+        'BUDGET',
+        `/trips/${trip.id}`,
+        'BUDGET_ALERT',
+        'budget'
+      );
+    } else if (ratio >= 0.8) {
+      createNotification(
+        '⚠️ Budget Alert (80%+)',
+        `${trip.tripName} has reached ${Math.round(ratio * 100)}% of its allocated budget ($${trip.spent.toLocaleString()} / $${trip.budget.toLocaleString()}).`,
+        'BUDGET',
+        `/trips/${trip.id}`,
+        'BUDGET_ALERT',
+        'budget'
+      );
+    }
+  }
+
+  // Create shared expense notification
+  if (isShared !== false) {
+    createNotification(
+      'New Shared Expense Logged',
+      `${paidByName || 'A traveler'} added "${title}" (${currency || '$'}${numAmount.toFixed(2)}) split among ${finalSplits.length} members.`,
+      'BUDGET',
+      `/trips/${tripId}`,
+      'EXPENSE',
+      'budget'
+    );
   }
 
   res.status(201).json({
     success: true,
-    message: 'Expense added successfully',
+    message: 'Expense added and splits computed successfully',
     data: newExpense,
+  });
+});
+
+app.put('/api/expenses/:id', (req: Request, res: Response) => {
+  const exp = EXPENSES.find((e) => e.id === req.params.id);
+  if (!exp) {
+    return res.status(404).json({ success: false, message: 'Expense not found' });
+  }
+
+  const oldAmount = exp.amount;
+  const { title, amount, category, paidByName, paidById, paymentMethod, notes, isShared, splitType, splits } = req.body;
+  const numAmount = amount !== undefined ? parseFloat(amount) : exp.amount;
+
+  exp.title = title || exp.title;
+  exp.amount = numAmount;
+  exp.category = category || exp.category;
+  exp.paidByName = paidByName || exp.paidByName;
+  exp.paidById = paidById || exp.paidById;
+  exp.paymentMethod = paymentMethod || exp.paymentMethod;
+  exp.notes = notes !== undefined ? notes : exp.notes;
+  exp.isShared = isShared !== undefined ? isShared : exp.isShared;
+  exp.splitType = splitType || exp.splitType;
+
+  if (splits) {
+    exp.splits = splits;
+  }
+
+  // Update Trip spent difference
+  const trip = TRIPS.find((t) => t.id === exp.tripId);
+  if (trip) {
+    trip.spent = Math.max(0, (trip.spent || 0) - oldAmount + numAmount);
+  }
+
+  res.json({
+    success: true,
+    message: 'Expense updated and recalculated',
+    data: exp,
   });
 });
 
@@ -1456,53 +2184,151 @@ app.delete('/api/expenses/:id', (req: Request, res: Response) => {
   res.json({ success: true, message: 'Expense deleted successfully' });
 });
 
-// Settlements calculation (who owes whom)
+// Settlements calculation (who owes whom with debt simplification & net balances)
 app.get('/api/expenses/settlements/:tripId', (req: Request, res: Response) => {
-  const expenses = EXPENSES.filter((e) => e.tripId === req.params.tripId);
-  const balances: Record<string, number> = {};
+  const { tripId } = req.params;
+  const trip = TRIPS.find((t) => t.id === tripId);
+  const expenses = EXPENSES.filter((e) => e.tripId === tripId);
+
+  // 1. Calculate each member's Total Paid and Total Fair Share
+  const memberMap: Record<string, { userId?: string; userName: string; totalPaid: number; fairShare: number }> = {};
+
+  // Pre-seed from group if available
+  const group = GROUPS.find((g) => g.tripId === tripId);
+  if (group) {
+    for (const m of group.members) {
+      memberMap[m.name] = { userId: m.userId, userName: m.name, totalPaid: 0, fairShare: 0 };
+    }
+  }
 
   for (const exp of expenses) {
-    balances[exp.paidByName] = (balances[exp.paidByName] || 0) + exp.amount;
-    for (const split of exp.splits) {
-      balances[split.userName] = (balances[split.userName] || 0) - split.amount;
+    if (exp.isShared !== false) {
+      if (!memberMap[exp.paidByName]) {
+        memberMap[exp.paidByName] = { userId: exp.paidById, userName: exp.paidByName, totalPaid: 0, fairShare: 0 };
+      }
+      memberMap[exp.paidByName].totalPaid += exp.amount;
+
+      for (const split of (exp.splits || [])) {
+        if (!memberMap[split.userName]) {
+          memberMap[split.userName] = { userId: split.userId, userName: split.userName, totalPaid: 0, fairShare: 0 };
+        }
+        memberMap[split.userName].fairShare += split.amount;
+      }
     }
   }
 
-  const debtors: { name: string; amount: number }[] = [];
-  const creditors: { name: string; amount: number }[] = [];
-
-  for (const [name, balance] of Object.entries(balances)) {
-    if (balance < -0.01) {
-      debtors.push({ name, amount: -balance });
-    } else if (balance > 0.01) {
-      creditors.push({ name, amount: balance });
+  // Account for settled transactions
+  const tripSettled = SETTLED_TRANSACTIONS.filter((st) => st.tripId === tripId);
+  for (const st of tripSettled) {
+    if (memberMap[st.fromUser]) {
+      memberMap[st.fromUser].totalPaid += st.amount;
+    }
+    if (memberMap[st.toUser]) {
+      memberMap[st.toUser].fairShare += st.amount;
     }
   }
+
+  const memberStats = Object.values(memberMap).map((m) => {
+    const net = Math.round((m.totalPaid - m.fairShare) * 100) / 100;
+    return {
+      userId: m.userId || 'usr-anon',
+      userName: m.userName,
+      totalPaid: Math.round(m.totalPaid * 100) / 100,
+      fairShare: Math.round(m.fairShare * 100) / 100,
+      netBalance: net,
+      status: net > 0.01 ? 'GETS_BACK' : net < -0.01 ? 'OWES' : 'SETTLED',
+    };
+  });
+
+  // 2. Simplified Settlement Algorithm (Greedy matching to minimize transactions)
+  const debtors = memberStats
+    .filter((m) => m.netBalance < -0.01)
+    .map((m) => ({ name: m.userName, amount: Math.abs(m.netBalance) }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const creditors = memberStats
+    .filter((m) => m.netBalance > 0.01)
+    .map((m) => ({ name: m.userName, amount: m.netBalance }))
+    .sort((a, b) => b.amount - a.amount);
 
   const settlements: any[] = [];
-  let dIdx = 0;
-  let cIdx = 0;
+  let d = 0;
+  let c = 0;
 
-  while (dIdx < debtors.length && cIdx < creditors.length) {
-    const debtor = debtors[dIdx];
-    const creditor = creditors[cIdx];
+  while (d < debtors.length && c < creditors.length) {
+    const debtor = debtors[d];
+    const creditor = creditors[c];
     const settleAmt = Math.min(debtor.amount, creditor.amount);
 
-    settlements.push({
-      fromUser: debtor.name,
-      toUser: creditor.name,
-      amount: Math.round(settleAmt * 100) / 100,
-      currency: expenses[0]?.currency || 'USD',
-    });
+    if (settleAmt > 0.009) {
+      settlements.push({
+        id: `stl-${debtor.name.replace(/\s+/g, '')}-${creditor.name.replace(/\s+/g, '')}-${Math.round(settleAmt * 100)}`,
+        fromUser: debtor.name,
+        toUser: creditor.name,
+        amount: Math.round(settleAmt * 100) / 100,
+        currency: trip?.currency || 'USD',
+        isSettled: false,
+      });
+    }
 
     debtor.amount -= settleAmt;
     creditor.amount -= settleAmt;
 
-    if (debtor.amount < 0.01) dIdx++;
-    if (creditor.amount < 0.01) cIdx++;
+    if (debtor.amount < 0.01) d++;
+    if (creditor.amount < 0.01) c++;
   }
 
-  res.json({ success: true, data: settlements, balances });
+  const balances: Record<string, number> = {};
+  for (const m of memberStats) {
+    balances[m.userName] = m.netBalance;
+  }
+
+  res.json({
+    success: true,
+    data: settlements,
+    memberStats,
+    balances,
+    totalSharedExpenses: Math.round(expenses.filter(e => e.isShared !== false).reduce((sum, e) => sum + e.amount, 0) * 100) / 100,
+    settledHistory: tripSettled,
+  });
+});
+
+// Mark a settlement transaction as completed
+app.post('/api/expenses/settlements/:tripId/settle', (req: Request, res: Response) => {
+  const { tripId } = req.params;
+  const { fromUser, toUser, amount } = req.body;
+  const numAmount = parseFloat(amount) || 0;
+
+  if (!fromUser || !toUser || numAmount <= 0) {
+    return res.status(400).json({ success: false, message: 'Invalid settlement parameters' });
+  }
+
+  const record = {
+    id: `settled-${Date.now()}`,
+    tripId,
+    fromUser,
+    toUser,
+    amount: numAmount,
+    currency: req.body.currency || 'USD',
+    settledAt: new Date().toISOString(),
+  };
+
+  SETTLED_TRANSACTIONS.push(record);
+
+  createNotification(
+    'Settlement Payment Completed',
+    `${fromUser} paid ${req.body.currency || '$'}${numAmount.toFixed(2)} to ${toUser} to settle trip balance.`,
+    'BUDGET',
+    `/trips/${tripId}`,
+    'EXPENSE',
+    'budget'
+  );
+
+  res.status(201).json({
+    success: true,
+    message: `Payment of ${numAmount} from ${fromUser} to ${toUser} marked as settled!`,
+    data: record,
+  });
 });
 
 // Destinations APIs
@@ -1576,37 +2402,112 @@ app.post('/api/groups/:id/invite', (req: Request, res: Response) => {
   res.json({ success: true, message: `Invitation sent to ${email}`, data: grp });
 });
 
-// Documents APIs
+// Documents & Media APIs
 app.get('/api/documents/trip/:tripId', (req: Request, res: Response) => {
   const docs = DOCUMENTS.filter((d) => d.tripId === req.params.tripId);
   res.json({ success: true, data: docs });
 });
 
 app.post('/api/documents', (req: Request, res: Response) => {
-  const { tripId, name, category, fileSize, expiryDate, notes } = req.body;
+  const {
+    tripId,
+    name,
+    category,
+    fileSize,
+    fileType,
+    expiryDate,
+    notes,
+    fileUrl,
+    thumbnailUrl,
+    isPhoto,
+    uploaderId,
+    uploaderName,
+  } = req.body;
+
+  const resolvedFileType = fileType || (isPhoto ? 'image/jpeg' : (name?.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream'));
+  const fallbackUrl = isPhoto
+    ? '/src/assets/images/dest_rome_colosseum_1790172766150.jpg'
+    : 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+
   const newDoc = {
     id: `doc-${Date.now()}`,
-    tripId,
-    name: name || 'Document.pdf',
-    category: category || 'Other',
-    fileSize: fileSize || '1.2 MB',
-    fileType: 'application/pdf',
+    tripId: tripId || 'trip-rome-2026',
+    name: name || (isPhoto ? 'Trip_Photo.jpg' : 'Travel_Document.pdf'),
+    category: category || (isPhoto ? 'Trip Photos' : 'Other'),
+    fileSize: fileSize || '1.8 MB',
+    fileType: resolvedFileType,
     uploadDate: new Date().toISOString().split('T')[0],
     expiryDate: expiryDate || undefined,
-    fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    fileUrl: fileUrl || fallbackUrl,
+    thumbnailUrl: thumbnailUrl || (isPhoto ? (fileUrl || fallbackUrl) : undefined),
     notes: notes || '',
+    uploaderId: uploaderId || 'usr-1',
+    uploaderName: uploaderName || 'Lara Croft',
+    isPhoto: Boolean(isPhoto),
   };
-  DOCUMENTS.push(newDoc);
-  res.status(201).json({ success: true, message: 'Document uploaded securely', data: newDoc });
+
+  DOCUMENTS.unshift(newDoc);
+
+  // Trigger Notification
+  createNotification(
+    isPhoto ? '📸 New Trip Photo Added' : '📄 Travel Document Uploaded',
+    `${newDoc.uploaderName} uploaded "${newDoc.name}" (${newDoc.category}) to the trip vault.`,
+    'DOCUMENT',
+    `/trips/${newDoc.tripId}`,
+    'DOCUMENT',
+    'documents'
+  );
+
+  res.status(201).json({
+    success: true,
+    message: 'File uploaded and cloud reference saved successfully',
+    data: newDoc,
+  });
 });
 
 app.delete('/api/documents/:id', (req: Request, res: Response) => {
-  DOCUMENTS = DOCUMENTS.filter((d) => d.id !== req.params.id);
+  const { id } = req.params;
+  const doc = DOCUMENTS.find((d) => d.id === id);
+  if (!doc) {
+    return res.status(404).json({ success: false, message: 'Document not found' });
+  }
+
+  const trip = TRIPS.find((t) => t.id === doc.tripId);
+  const requesterId = (req.headers['x-user-id'] as string) || (req.query.userId as string) || 'usr-1';
+
+  // Access Control: Only the uploader or the trip owner is permitted to delete
+  const isUploader = doc.uploaderId ? doc.uploaderId === requesterId : true;
+  const isTripOwner = trip ? trip.ownerId === requesterId : false;
+
+  if (!isUploader && !isTripOwner) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied: Only the file uploader or trip owner can delete this document.',
+    });
+  }
+
+  DOCUMENTS = DOCUMENTS.filter((d) => d.id !== id);
   res.json({ success: true, message: 'Document deleted successfully' });
 });
 
 // Notifications APIs
 app.get('/api/notifications', (req: Request, res: Response) => {
+  // Scheduled Check: Verify if upcoming trip reminders or activity reminders should be injected
+  const romeTrip = TRIPS.find((t) => t.id === 'trip-rome-2026');
+  if (romeTrip) {
+    const hasTripReminder = NOTIFICATIONS.some((n) => n.category === 'TRIP_START');
+    if (!hasTripReminder) {
+      createNotification(
+        '⏳ Upcoming Journey Starting Soon!',
+        `Your trip to ${romeTrip.destination} begins on ${romeTrip.startDate}. Remember to check your boarding pass and packing list!`,
+        'TRIP',
+        `/trips/${romeTrip.id}`,
+        'TRIP_START',
+        'trips'
+      );
+    }
+  }
+
   res.json({ success: true, data: NOTIFICATIONS });
 });
 
@@ -1619,6 +2520,76 @@ app.patch('/api/notifications/:id/read', (req: Request, res: Response) => {
 app.post('/api/notifications/read-all', (req: Request, res: Response) => {
   NOTIFICATIONS.forEach((n) => (n.isRead = true));
   res.json({ success: true, message: 'All notifications marked as read' });
+});
+
+app.delete('/api/notifications/:id', (req: Request, res: Response) => {
+  NOTIFICATIONS = NOTIFICATIONS.filter((n) => n.id !== req.params.id);
+  res.json({ success: true, message: 'Notification dismissed' });
+});
+
+// Simulate Notification & Email Dispatch (JavaMailSender / Push simulation)
+app.post('/api/notifications/simulate', (req: Request, res: Response) => {
+  const { scenario, customTitle, customMessage, targetTab } = req.body;
+  let title = customTitle || 'New System Alert';
+  let message = customMessage || 'An update requires your attention.';
+  let type: 'TRIP' | 'BUDGET' | 'GROUP' | 'WEATHER' | 'AI' | 'DOCUMENT' = 'TRIP';
+  let category: any = 'TRIP_START';
+
+  switch (scenario) {
+    case 'INVITATION':
+      title = '📬 Group Trip Invitation';
+      message = 'Elena Bianchi invited you to join "Tuscany Vineyard Cycling Tour".';
+      type = 'GROUP';
+      category = 'INVITATION';
+      break;
+    case 'INVITATION_ACCEPTED':
+      title = '🎉 Invitation Accepted!';
+      message = 'Marco Rossi accepted your group invitation to Rome Explorers Squad.';
+      type = 'GROUP';
+      category = 'GROUP';
+      break;
+    case 'ACTIVITY_UPCOMING':
+      title = '⏰ Upcoming Activity Today at 13:00';
+      message = '"Colosseum & Roman Forum Tour" is scheduled in 2 hours. Don\'t forget your tickets!';
+      type = 'TRIP';
+      category = 'ACTIVITY';
+      break;
+    case 'BUDGET_EXCEEDED':
+      title = '🚨 Budget Overrun Notice';
+      message = 'Expenses for Rome Cultural Escape have exceeded 100% of your allocated budget.';
+      type = 'BUDGET';
+      category = 'BUDGET_ALERT';
+      break;
+    case 'EXPENSE_SHARED':
+      title = '💰 Shared Expense Added';
+      message = 'Madhav Sharma added "Dinner at Trattoria Monti" ($140.00). Your share: $46.67.';
+      type = 'BUDGET';
+      category = 'EXPENSE';
+      break;
+    case 'DOCUMENT_UPLOADED':
+      title = '📂 New Travel Document';
+      message = 'Lara Croft uploaded "Hotel Artemide Booking Voucher.pdf".';
+      type = 'DOCUMENT';
+      category = 'DOCUMENT';
+      break;
+  }
+
+  const notif = createNotification(title, message, type, '/trips/trip-rome-2026', category, targetTab || 'dashboard');
+
+  // Simulated email dispatch log (JavaMailSender / Firebase Mail parity)
+  console.log(`[JavaMailSender Simulation] Sending dispatch email to user: Subject="${title}", Body="${message}"`);
+
+  res.status(201).json({
+    success: true,
+    message: `Simulated notification triggered successfully (${scenario || 'custom'})`,
+    data: notif,
+    mailDispatch: {
+      provider: 'JavaMailSender / SMTP',
+      status: 'SENT',
+      recipient: 'lara@tripnest.com',
+      sentAt: new Date().toISOString(),
+    },
+  });
 });
 
 // Favorites APIs

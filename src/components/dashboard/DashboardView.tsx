@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Compass,
   Calendar,
@@ -11,10 +11,13 @@ import {
   TrendingUp,
   Clock,
   CheckCircle2,
+  Share2,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTrip } from '../../context/TripContext';
 import { useCurrency } from '../../context/CurrencyContext';
+import { Trip } from '../../types';
+import { ShareItineraryModal } from '../trips/ShareItineraryModal';
 
 interface DashboardViewProps {
   onOpenCreateTrip: () => void;
@@ -32,6 +35,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const { user } = useAuth();
   const { trips, activeTrip, itineraryDays } = useTrip();
   const { formatPrice, currentCurrency } = useCurrency();
+  const [tripToShare, setTripToShare] = useState<Trip | null>(null);
 
   const totalSpent = trips.reduce((acc, t) => acc + (t.spent || 0), 0);
   const upcomingTrips = trips.filter((t) => t.status === 'UPCOMING' || t.status === 'PLANNING');
@@ -202,16 +206,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span className="text-xs text-slate-400 font-mono">
                 {itineraryDays.length} Days Planned
               </span>
-              <button
-                onClick={() => {
-                  onSelectTrip(activeTrip.id);
-                  onNavigateToTab('trips');
-                }}
-                className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 transition-colors"
-              >
-                <span>Open Full Workspace</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTripToShare(activeTrip)}
+                  className="flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-900/50 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-900/50 transition-colors cursor-pointer"
+                  title="Share Itinerary (Public URL & Collaborators)"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Share</span>
+                </button>
+                <button
+                  onClick={() => {
+                    onSelectTrip(activeTrip.id);
+                    onNavigateToTab('trips');
+                  }}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 transition-colors cursor-pointer"
+                >
+                  <span>Open Full Workspace</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -299,6 +313,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     {trip.status}
                   </span>
                 </div>
+                <div className="absolute top-3 right-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTripToShare(trip);
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white hover:bg-indigo-600 backdrop-blur-md transition-colors cursor-pointer shadow-xs border border-white/20"
+                    title="Share this itinerary"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
                 <div className="absolute bottom-3 left-3 text-white">
                   <h4 className="text-base font-bold drop-shadow-xs">{trip.tripName}</h4>
                   <p className="text-xs text-white/90 flex items-center gap-1">
@@ -323,6 +349,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Share Itinerary Modal */}
+      {tripToShare && (
+        <ShareItineraryModal
+          isOpen={!!tripToShare}
+          onClose={() => setTripToShare(null)}
+          trip={tripToShare}
+          onPreviewPublicLink={(token) => {
+            setTripToShare(null);
+            // Open public preview URL in new tab or route
+            window.location.search = `?shareToken=${token}`;
+          }}
+        />
+      )}
     </div>
   );
 };
