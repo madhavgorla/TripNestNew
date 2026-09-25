@@ -90,6 +90,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             Budget
           </button>
+          <button
+            onClick={() => onNavigateTab('ratings')}
+            className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+          >
+            Reviews
+          </button>
+          <button
+            onClick={() => onNavigateTab('architecture')}
+            className="flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400 hover:opacity-80 transition-opacity cursor-pointer"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Spring Boot API</span>
+          </button>
           <span className="text-xs text-slate-400 font-mono tabular-nums border-l border-slate-200 dark:border-slate-800 pl-4">
             {rateNotice}
           </span>

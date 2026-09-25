@@ -19,6 +19,7 @@ import { AnalyticsView } from './components/analytics/AnalyticsView';
 import { AdminConsole } from './components/admin/AdminConsole';
 import { SettingsView } from './components/settings/SettingsView';
 import { CommunityReviewsPage } from './components/reviews/CommunityReviewsPage';
+import { SpringBootArchitectureHub } from './components/architecture/SpringBootArchitectureHub';
 import { Destination } from './types';
 
 const MainAppContent: React.FC = () => {
@@ -142,6 +143,14 @@ const MainAppContent: React.FC = () => {
             )}
 
             {currentTab === 'documents' && <DocumentVault />}
+
+            {(currentTab === 'ratings' || currentTab === 'reviews') && (
+              <CommunityReviewsPage />
+            )}
+
+            {(currentTab === 'architecture' || currentTab === 'backend') && (
+              <SpringBootArchitectureHub />
+            )}
 
             {currentTab === 'analytics' && <AnalyticsView />}
 

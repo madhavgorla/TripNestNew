@@ -1,0 +1,60 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: tripnest-api
+
+  # PostgreSQL Database Connection
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/tripnest}
+    username: ${SPRING_DATASOURCE_USERNAME:tripnest}
+    password: ${SPRING_DATASOURCE_PASSWORD:tripnest_secure_2026}
+    driver-class-name: org.postgresql.Driver
+
+  # JPA & Hibernate Settings
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # SQL Initialization (optional data seeding)
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+      continue-on-error: true
+
+  # Spring Security & Google OAuth2 Client Configuration
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com}
+            client-secret: ${GOOGLE_CLIENT_SECRET:YOUR_GOOGLE_CLIENT_SECRET}
+            scope:
+              - openid
+              - profile
+              - email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+
+# Custom Application & JWT Config
+tripnest:
+  jwt:
+    # 256-bit secret key for HMAC-SHA256 signing
+    secret: ${JWT_SECRET:tripnestSecureJwtSecretKeyMustBeAtLeast256BitsLongForHmacSha256Security2026}
+    expiration-ms: 86400000 # 24 hours
+  cors:
+    allowed-origins:
+      - "http://localhost:3000"
+      - "http://localhost:5173"
+      - "https://*.run.app"
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
