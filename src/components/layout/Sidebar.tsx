@@ -14,6 +14,7 @@ import {
   Plus,
   ChevronRight,
   Star,
+  Server,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTrip } from '../../context/TripContext';
@@ -33,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, onOpe
     { id: 'trips', label: 'My Trips', icon: Compass, badge: trips.length },
     { id: 'discover', label: 'Discover', icon: Globe },
     { id: 'ratings', label: 'Ratings & Reviews', icon: Star },
+    { id: 'architecture', label: 'Spring Boot & Arch', icon: Server },
     { id: 'favorites', label: 'Favorites', icon: Heart },
     { id: 'groups', label: 'Travel Groups', icon: Users },
     { id: 'budget', label: 'Budget & Expenses', icon: WalletCards },

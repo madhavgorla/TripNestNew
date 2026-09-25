@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database Service
+  tripnest-db:
+    image: postgres:16-alpine
+    container_name: tripnest-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: tripnest
+      POSTGRES_USER: tripnest
+      POSTGRES_PASSWORD: tripnest_secure_2026
+    ports:
+      - "5432:5432"
+    volumes:
+      - tripnest-data:/var/lib/postgresql/data
+      - ./src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./src/main/resources/data.sql:/docker-entrypoint-initdb.d/02-data.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tripnest -d tripnest"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Spring Boot Java 21 API Service
+  tripnest-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tripnest-api
+    restart: on-failure
+    depends_on:
+      tripnest-db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://tripnest-db:5432/tripnest
+      SPRING_DATASOURCE_USERNAME: tripnest
+      SPRING_DATASOURCE_PASSWORD: tripnest_secure_2026
+      JWT_SECRET: tripnestSecureJwtSecretKeyMustBeAtLeast256BitsLongForHmacSha256Security2026
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dummy-client-id}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-dummy-client-secret}
+      FRONTEND_URL: http://localhost:3000
+
+volumes:
+  tripnest-data:
