@@ -1,0 +1,9 @@
+{
+  "name": "TripNest",
+  "description": "AI-Powered Travel Planning & Management Platform with interactive day itineraries, map routing, budget tracking, and real-time smart travel assistance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
+
